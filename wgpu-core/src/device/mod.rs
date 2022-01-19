@@ -3801,10 +3801,23 @@ impl<G: GlobalIdentityHandlerFactory> Global<G> {
             // This is only applicable for identity filters that are generating new IDs,
             // so their inputs are `PhantomData` of size 0.
             if mem::size_of::<Input<G, id::BindGroupLayoutId>>() == 0 {
-                let (bgl_guard, _) = hub.bind_group_layouts.read(&mut token);
+                let (mut bgl_guard, _) = hub.bind_group_layouts.write(&mut token);
                 if let Some(id) =
                     Device::deduplicate_bind_group_layout(device_id, &entry_map, &*bgl_guard)
                 {
+                    return (id, None);
+                } else {
+                    let layout = match device.create_bind_group_layout(
+                        device_id,
+                        desc.label.borrow_option(),
+                        entry_map,
+                    ) {
+                        Ok(layout) => layout,
+                        Err(e) => break e,
+                    };
+
+                    let id = fid.into_id();
+                    bgl_guard.insert(id, layout);
                     return (id, None);
                 }
             }
